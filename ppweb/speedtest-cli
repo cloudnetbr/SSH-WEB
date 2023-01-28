@@ -1,0 +1,2001 @@
+#!/usr/bin/env python
+# -*- codificação: utf-8 -*-
+# Copyright 2022 @cloudtechnetwork
+# Todos os direitos reservados.
+
+importar csv
+importar data e hora
+importar errno
+importar matemática
+import os
+plataforma de importação
+importar re
+sinal de importação
+soquete de importação
+sistema de importação
+importação de segmentação
+import timeit
+importar xml.parsers.expat
+
+experimentar:
+    importar gzip
+    GZIP_BASE = gzip.GzipFile
+exceto ImportError:
+    gzip = Nenhum
+    GZIP_BASE = objeto
+
+__version__ = '2.1.4b1'
+
+
+classe FakeShutdownEvent(objeto):
+    """Classe para falsificar um threading.Event.isSet para que os usuários deste módulo
+    não são obrigados a registrar seu próprio threading.Event()
+    """
+
+    @staticmethod
+    def isSet():
+        "Método fictício para sempre retornar falso"""
+        retorna falso
+
+    is_set = isSet
+
+
+# Algumas variáveis ​​globais que usamos
+DEBUG = Falso
+_GLOBAL_DEFAULT_TIMEOUT = objeto()
+PY25PLUS = sys.version_info[:2] >= (2, 5)
+PY26PLUS = sys.version_info[:2] >= (2, 6)
+PY32PLUS = sys.version_info[:2] >= (3, 2)
+PY310PLUS = sys.version_info[:2] >= (3, 10)
+
+# Comece a importar o jogo para lidar com Python 2 e Python 3
+experimentar:
+    importar json
+exceto ImportError:
+    experimentar:
+        importar simplejson como json
+    exceto ImportError:
+        json = Nenhum
+
+experimentar:
+    importar xml.etree.ElementTree como ET
+    experimentar:
+        de xml.etree.ElementTree importar _Element como ET_Element
+    exceto ImportError:
+        passar
+exceto ImportError:
+    de xml.dom importar minidom como DOM
+    de xml.parsers.expat import ExpatError
+    ET = Nenhum
+
+experimentar:
+    da importação urllib2 (urlopen, Request, HTTPError, URLError,
+                         ResumoHTTPHandler, ProxyHandler,
+                         HTTPDefaultErrorHandler, HTTPRedirectHandler,
+                         HTTPErrorProcessor, OpenerDirector)
+exceto ImportError:
+    da importação urllib.request (urlopen, Request, HTTPError, URLError,
+                                ResumoHTTPHandler, ProxyHandler,
+                                HTTPDefaultErrorHandler, HTTPRedirectHandler,
+                                HTTPErrorProcessor, OpenerDirector)
+
+experimentar:
+    de httplib import HTTPConnection, BadStatusLine
+exceto ImportError:
+    de http.client import HTTPConnection, BadStatusLine
+
+experimentar:
+    de httplib importar HTTPSConnection
+exceto ImportError:
+    experimentar:
+        de http.client import HTTPSConnection
+    exceto ImportError:
+        HTTPSConnection = Nenhum
+
+experimentar:
+    de httplib importar FakeSocket
+exceto ImportError:
+    FakeSocket = Nenhum
+
+experimentar:
+    from Queue import Queue
+exceto ImportError:
+    da fila importar Fila
+
+experimentar:
+    de urlparse importar urlparse
+exceto ImportError:
+    de urllib.parse importar urlparse
+
+experimentar:
+    de urlparse importar parse_qs
+exceto ImportError:
+    experimentar:
+        de urllib.parse importar parse_qs
+    exceto ImportError:
+        da importação cgi parse_qs
+
+experimentar:
+    de hashlib importar md5
+exceto ImportError:
+    de md5 importar md5
+
+experimentar:
+    de argparse importar ArgumentParser como ArgParser
+    de argparse importar SUPPRESS como ARG_SUPPRESS
+    PARSER_TYPE_INT = int
+    PARSER_TYPE_STR = str
+    PARSER_TYPE_FLOAT = flutuante
+exceto ImportError:
+    de optparse importar OptionParser como ArgParser
+    de optparse importar SUPPRESS_HELP como ARG_SUPPRESS
+    PARSER_TYPE_INT = 'int'
+    PARSER_TYPE_STR = 'string'
+    PARSER_TYPE_FLOAT = 'flutuar'
+
+experimentar:
+    de cStringIO importar StringIO
+    BytesIO = Nenhum
+exceto ImportError:
+    experimentar:
+        de StringIO importar StringIO
+        BytesIO = Nenhum
+    exceto ImportError:
+        de io import StringIO, BytesIO
+
+experimentar:
+    importar __builtin__
+exceto ImportError:
+    importar builtins
+    de io import TextIOWrapper, FileIO
+
+    classe _Py3Utf8Output(TextIOWrapper):
+        """Envoltório codificado em UTF-8 em torno de stdout para py3, para substituir
+        ASCII stdout
+        """
+        def __init__(self, f, **kwargs):
+            buf = FileIO(f.fileno(), 'w')
+            super(_Py3Utf8Output, self).__init__(
+                buf,
+                codificação='utf8',
+                erros='estrito'
+            )
+
+        def escrever(auto, s):
+            super(_Py3Utf8Output, self).write(s)
+            self.flush()
+
+    _py3_print = getattr(builtins, 'print')
+    experimentar:
+        _py3_utf8_stdout = _Py3Utf8Output(sys.stdout)
+        _py3_utf8_stderr = _Py3Utf8Output(sys.stderr)
+    exceto OSError:
+        # sys.stdout/sys.stderr não é um objeto stdout/stderr compatível
+        # apenas use e espere que tudo corra bem
+        _py3_utf8_stdout = sys.stdout
+        _py3_utf8_stderr = sys.stderr
+
+    def to_utf8(v):
+        """Codificação sem operação para utf-8 para py3"""
+        retornar v
+
+    def print_(*args, **kwargs):
+        """Função wrapper para py3 imprimir, com um stdout codificado em utf-8"""
+        if kwargs.get('arquivo') == sys.stderr:
+            kwargs['arquivo'] = _py3_utf8_stderr
+        outro:
+            kwargs['arquivo'] = kwargs.get('arquivo', _py3_utf8_stdout)
+        _py3_print(*args, **kwargs)
+outro:
+    do __builtin__
+
+    def to_utf8(v):
+        """Codifique o valor para utf-8 se possível para py2"""
+        experimentar:
+            return v.encode('utf8', 'estrito')
+        exceto AttributeError:
+            retornar v
+
+    def print_(*args, **kwargs):
+        """A nova função de impressão para Python 2.4 e 2.5.
+
+        Extraído de https://pypi.python.org/pypi/six/
+
+        Modificado para definir a codificação para UTF-8 sempre e liberar após a gravação
+        """
+        fp = kwargs.pop("arquivo", sys.stdout)
+        se fp for Nenhum:
+            Retorna
+
+        def escrever(dados):
+            se não for isinstance(data, basestring):
+                dados = str(dados)
+            # Se o arquivo tiver uma codificação, codifique unicode com ela.
+            encoding = 'utf8' # Sempre confie em UTF-8 para saída
+            if (isinstance(fp, arquivo) e
+                    isinstance(dados, unicode) e
+                    a codificação não é Nenhuma):
+                erros = getattr(fp, "erros", nenhum)
+                se os erros forem Nenhum:
+                    erros = "estrito"
+                data = data.encode(codificação, erros)
+            fp.write(dados)
+            fp.flush()
+        want_unicode = Falso
+        set = kwargs.pop("set", Nenhum)
+        se set não for Nenhum:
+            if isinstance(sep, unicode):
+                want_unicode = Verdadeiro
+            elif not isinstance(sep, str):
+                raise TypeError("sep deve ser None ou uma string")
+        fim = kwargs.pop("fim", Nenhum)
+        se final não for Nenhum:
+            if isinstance(end, unicode):
+                want_unicode = Verdadeiro
+            elif not isinstance(end, str):
+                raise TypeError("final deve ser Nenhum ou uma string")
+        se kwargs:
+            raise TypeError("argumentos de palavra-chave inválidos para imprimir ()")
+        se não quiser_unicode:
+            para arg em args:
+                if isinstance(arg, unicode):
+                    want_unicode = Verdadeiro
+                    pausa
+        se quiser_unicode:
+            nova linha = unicode("\n")
+            espaço = unicode(" ")
+        outro:
+            nova linha = "\n"
+            espaço = ""
+        se set for Nenhum:
+            set = espaço
+        se o final for Nenhum:
+            fim = nova linha
+        para i, arg em enumerate(args):
+            se eu:
+                escrever (set)
+            escreva(arg)
+        escrever (fim)
+
+# Exceção "constantes" para suportar Python 2 até Python 3
+experimentar:
+    importar ssl
+    experimentar:
+        CERT_ERROR = (ssl.CertificateError,)
+    exceto AttributeError:
+        CERT_ERROR = tupla()
+
+    HTTP_ERRORS = (
+        (HTTPError, URLError, socket.error, ssl.SSLError, BadStatusLine) +
+        CERT_ERROR
+    )
+exceto ImportError:
+    ssl = Nenhum
+    HTTP_ERRORS = (HTTPError, URLError, socket.error, BadStatusLine)
+
+se PY32PLUS:
+    etree_iter = ET.Element.iter
+elif PY25PLUS:
+    etree_iter = ET_Element.getiterator
+
+se PY26PLUS:
+    thread_is_alive = threading.Thread.is_alive
+outro:
+    thread_is_alive = threading.Thread.isAlive
+
+
+def event_is_set(evento):
+    experimentar:
+        return event.is_set()
+    exceto AttributeError:
+        return event.isSet()
+
+
+classe SpeedtestException(Exception):
+    """Exceção de base para este módulo"""
+
+
+classe SpeedtestCLIError(SpeedtestException):
+    """Exceção genérica para gerar erros durante a operação CLI"""
+
+
+classe SpeedtestHTTPError(SpeedtestException):
+    """Exceção HTTP base para este módulo"""
+
+
+classe SpeedtestConfigError(SpeedtestException):
+    """O XML de configuração é inválido"""
+
+
+classe SpeedtestServersError(SpeedtestException):
+    """O XML dos servidores é inválido"""
+
+
+classe ConfigRetrievalError(SpeedtestHTTPError):
+    """Não foi possível recuperar config.php"""
+
+
+classe ServersRetrievalError(SpeedtestHTTPError):
+    """Não foi possível recuperar speedtest-servers.php"""
+
+
+classe InvalidServerIDType(SpeedtestException):
+    """O ID do servidor usado para filtragem não era um número inteiro"""
+
+
+classe NoMatchedServers(SpeedtestException):
+    """Nenhum servidor correspondido ao filtrar"""
+
+
+classe SpeedtestMiniConnectFailure(SpeedtestException):
+    """Não foi possível conectar ao miniservidor de teste de velocidade fornecido"""
+
+
+classe InvalidSpeedtestMiniServer(SpeedtestException):
+    """Servidor fornecido como um miniservidor de teste de velocidade na verdade não aparece
+    para ser um mini-servidor speedtest
+    """
+
+
+classe ShareResultsConnectFailure(SpeedtestException):
+    """Não foi possível conectar à API speedtest.net para POSTar os resultados"""
+
+
+classe ShareResultsSubmitFailure(SpeedtestException):
+    """Não foi possível POSTar os resultados com êxito na API speedtest.net após
+    conexão
+    """
+
+
+classe SpeedtestUploadTimeout(SpeedtestException):
+    """configuração de comprimento de teste atingida durante o upload
+    Usado para garantir que o upload seja interrompido quando nenhum dado adicional deve ser enviado
+    """
+
+
+classe SpeedtestBestServerFailure(SpeedtestException):
+    """Não foi possível determinar o melhor servidor"""
+
+
+classe SpeedtestMissingBestServer(SpeedtestException):
+    """get_best_server não chamado ou incapaz de determinar o melhor servidor"""
+
+
+def create_connection(endereço, tempo limite=_GLOBAL_DEFAULT_TIMEOUT,
+                      source_address=Nenhum):
+    """Conecte-se a *endereço* e retorne o objeto de soquete.
+
+    Função de conveniência. Conecte-se ao *endereço* (um ``(host,
+    port)``) e retornar o objeto socket. Passando no opcional
+    O parâmetro *timeout* definirá o tempo limite na instância do soquete
+    antes de tentar conectar. Se nenhum *timeout* for fornecido, o
+    configuração de tempo limite padrão global retornada por :func:`getdefaulttimeout`
+    é usado. Se *source_address* for definido, deve ser uma tupla de (host, porta)
+    para que o soquete se associe como um endereço de origem antes de fazer a conexão.
+    Um host de '' ou porta 0 diz ao sistema operacional para usar o padrão.
+
+    Em grande parte fornecido a partir do Python 2.7, modificado para funcionar com o Python 2.4
+    """
+
+    host, porta = endereço
+    erro = Nenhum
+    para res em socket.getaddrinfo(host, porta, 0, socket.SOCK_STREAM):
+        af, socktype, proto, canonname, sa = res
+        meia = Nenhuma
+        experimentar:
+            sock = socket.socket(af, socktype, proto)
+            se o tempo limite não for _GLOBAL_DEFAULT_TIMEOUT:
+                meia.settimeout(float(tempo limite))
+            se source_address:
+                sock.bind(source_address)
+            sock.connect(sa)
+            devolver meia
+
+        exceto socket.error:
+            erro = get_exception ()
+            se sock não for None:
+                meia.fechar()
+
+    se err não for None:
+        levantar errar
+    outro:
+        raise socket.error("getaddrinfo retorna uma lista vazia")
+
+
+classe SpeedtestHTTPConnection(HTTPConnection):
+    """Conexão HTTP personalizada para suportar source_address em
+    Python 2.4 - Python 3
+    """
+    def __init__(self, *args, **kwargs):
+        source_address = kwargs.pop('source_address', Nenhum)
+        tempo limite = kwargs.pop('tempo limite', 10)
+
+        self._tunnel_host = Nenhum
+
+        HTTPConnection.__init__(self, *args, **kwargs)
+
+        self.source_address = source_address
+        self.timeout = tempo limite
+
+    def conectar(auto):
+        """Conecte-se ao host e à porta especificada em __init__."""
+        experimentar:
+            self.sock = socket.create_connection(
+                (self.host, self.port),
+                self.timeout,
+                self.source_address
+            )
+        exceto (AttributeError, TypeError):
+            self.sock = create_connection(
+                (self.host, self.port),
+                self.timeout,
+                self.source_address
+            )
+
+        se self._tunnel_host:
+            self._tunnel()
+
+
+se HTTPSConnection:
+    classe SpeedtestHTTPSConnection(HTTPSConnection):
+        """Conexão HTTPS personalizada para suportar source_address em
+        Python 2.4 - Python 3
+        """
+        porta_padrão = 443
+
+        def __init__(self, *args, **kwargs):
+            source_address = kwargs.pop('source_address', Nenhum)
+            tempo limite = kwargs.pop('tempo limite', 10)
+
+            self._tunnel_host = Nenhum
+
+            HTTPSConnection.__init__(self, *args, **kwargs)
+
+            self.timeout = tempo limite
+            self.source_address = source_address
+
+        def conectar(auto):
+            "Conecte-se a um host em uma determinada porta (SSL)."
+            experimentar:
+                self.sock = socket.create_connection(
+                    (self.host, self.port),
+                    self.timeout,
+                    self.source_address
+                )
+            exceto (AttributeError, TypeError):
+                self.sock = create_connection(
+                    (self.host, self.port),
+                    self.timeout,
+                    self.source_address
+                )
+
+            se self._tunnel_host:
+                self._tunnel()
+
+            se ssl:
+                experimentar:
+                    kwargs = {}
+                    if hasattr(ssl, 'SSLContext'):
+                        se self._tunnel_host:
+                            kwargs['server_hostname'] = self._tunnel_host
+                        outro:
+                            kwargs['server_hostname'] = self.host
+                    self.sock = self._context.wrap_socket(self.sock, **kwargs)
+                exceto AttributeError:
+                    self.sock = ssl.wrap_socket(self.sock)
+                    experimentar:
+                        self.sock.server_hostname = self.host
+                    exceto AttributeError:
+                        passar
+            elif FakeSocket:
+                # Python 2.4/2.5 compatível
+                experimentar:
+                    self.sock = FakeSocket(self.sock, socket.ssl(self.sock))
+                exceto AttributeError:
+                    raise SpeedtestException(
+                        'Esta versão do Python não suporta HTTPS/SSL'
+                        'funcionalidade'
+                    )
+            outro:
+                raise SpeedtestException(
+                    'Esta versão do Python não suporta HTTPS/SSL'
+                    'funcionalidade'
+                )
+
+
+def _build_connection(connection, source_address, timeout, context=None):
+    """Cross Python 2.4 - Python 3 chamável para construir uma ``HTTPConnection`` ou
+    ``HTTPSConnection`` com os argumentos que precisamos
+
+    Chamado a partir dos métodos ``http(s)_open`` do ``SpeedtestHTTPHandler`` ou
+    ``SpeedtestHTTPSHandler``
+    """
+    def interno(host, **kwargs):
+        kwargs.update({
+            'source_address': source_address,
+            'tempo limite': tempo limite
+        })
+        se contexto:
+            kwargs['contexto'] = contexto
+        conexão de retorno(host, **kwargs)
+    voltar para dentro
+
+
+class SpeedtestHTTPHandler(AbstractHTTPHandler):
+    """``HTTPHandler`` personalizado que pode construir uma ``HTTPConnection`` com o
+    args que precisamos para ``source_address`` e ``timeout``
+    """
+    def __init__(self, debuglevel=0, source_address=None, timeout=10):
+        AbstractHTTPHandler.__init__(self, debuglevel)
+        self.source_address = source_address
+        self.timeout = tempo limite
+
+    def http_open(self, req):
+        return self.do_open(
+            _build_connection(
+                SpeedtestHTTPConnection,
+                self.source_address,
+                self.timeout
+            ),
+            pedido
+        )
+
+    http_request = AbstractHTTPHandler.do_request_
+
+
+classe SpeedtestHTTPSHandler(AbstractHTTPHandler):
+    """``HTTPSHandler`` personalizado que pode construir uma ``HTTPSConnection`` com o
+    args que precisamos para ``source_address`` e ``timeout``
+    """
+    def __init__(self, debuglevel=0, context=None, source_address=None,
+                 tempo limite = 10):
+        AbstractHTTPHandler.__init__(self, debuglevel)
+        self._context = contexto
+        self.source_address = source_address
+        self.timeout = tempo limite
+
+    def https_open(self, req):
+        return self.do_open(
+            _build_connection(
+                SpeedtestHTTPSConexão,
+                self.source_address,
+                self.timeout,
+                context=self._context,
+            ),
+            pedido
+        )
+
+    https_request = AbstractHTTPHandler.do_request_
+
+
+def build_opener(source_address=Nenhum, tempo limite=10):
+    """Função similar a ``urllib2.build_opener`` que irá compilar
+    um ``OpenerDirector`` com os manipuladores explícitos que queremos,
+    ``source_address`` para ligação, ``timeout`` e nosso costume
+    `User-Agent`
+    """
+
+    impressora('Tempo limite definido como %d' % tempo limite, debug=True)
+
+    se source_address:
+        source_address_tuple = (source_address, 0)
+        impressora('Ligação ao endereço de origem: %r' % (source_address_tuple,),
+                depurar=Verdadeiro)
+    outro:
+        source_address_tuple = Nenhum
+
+    manipuladores = [
+        ProxyHandler(),
+        SpeedtestHTTPHandler(source_address=source_address_tuple,
+                             timeout=timeout),
+        SpeedtestHTTPSHandler(source_address=source_address_tuple,
+                              timeout=timeout),
+        HTTPDefaultErrorHandler(),
+        HTTPRedirectHandler(),
+        HTTPErrorProcessor()
+    ]
+
+    opener = OpenerDirector()
+    opener.addheaders = [('User-agent', build_user_agent())]
+
+    para manipulador em manipuladores:
+        opener.add_handler(manipulador)
+
+    abridor de retorno
+
+
+classe GzipDecodedResponse(GZIP_BASE):
+    """Um objeto semelhante a um arquivo para decodificar uma resposta codificada com o gzip
+    método, conforme descrito na RFC 1952.
+
+    Amplamente copiado de ``xmlrpclib``/``xmlrpc.client`` e modificado
+    para trabalhar para py2.4-py3
+    """
+    def __init__(self, resposta):
+        # resposta não suporta tell() e read(), exigidos por
+        # GzipFile
+        se não gzip:
+            raise SpeedtestHTTPError('O corpo da resposta HTTP é codificado em gzip, '
+                                     'mas o suporte gzip não está disponível')
+        IO = BytesIO ou StringIO
+        self.io = IO()
+        enquanto 1:
+            pedaço = resposta.read(1024)
+            se len(pedaço) == 0:
+                pausa
+            self.io.write(bloco)
+        self.io.seek(0)
+        gzip.GzipFile.__init__(self, mode='rb', fileobj=self.io)
+
+    def fechar(auto):
+        experimentar:
+            gzip.GzipFile.close(self)
+        finalmente:
+            self.io.close()
+
+
+def get_exception():
+    """Função auxiliar para trabalhar com py2.4-py3 para obter o atual
+    exceção em um bloco try/except
+    """
+    return sys.exc_info()[1]
+
+
+distância def (origem, destino):
+    """Determine a distância entre 2 conjuntos de [lat,lon] em km"""
+
+    lat1, lon1 = origem
+    lat2, lon2 = destino
+    raio = 6371 # km
+
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) * math.sin(dlat / 2) +
+         math.cos(math.radians(lat1)) *
+         math.cos(math.radians(lat2)) * math.sin(dlon / 2) *
+         math.sin(dlon / 2))
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    d = raio * c
+
+    retornar d
+
+
+def build_user_agent():
+    """Criar uma sequência de User-Agent compatível com Mozilla/5.0"""
+
+    ua_tuple = (
+        'Mozilla/5.0',
+        '(%s; U; %s; en-us)' % (plataforma.plataforma(),
+                                platform.architecture()[0]),
+        'Python/%s' % platform.python_version(),
+        '(KHTML, como Gecko)',
+        'speedtest-cli/%s' % __version__
+    )
+    user_agent = ' '.join(ua_tuple)
+    impressora('User-Agent: %s' % user_agent, debug=True)
+    return user_agent
+
+
+def build_request(url, data=None, headers=None, bump='0', secure=False):
+    """Criar um objeto de solicitação urllib2
+
+    Esta função adiciona automaticamente um cabeçalho User-Agent a todas as solicitações
+
+    """
+
+    se não cabeçalhos:
+        cabeçalhos = {}
+
+    if url[0] == ':':
+        esquema = ('http', 'https')[bool(seguro)]
+        schemad_url = '%s%s' % (esquema, url)
+    outro:
+        schemad_url = url
+
+    E se '?' na url:
+        delim = '&'
+    outro:
+        delim = '?'
+
+    # QUEM VOCÊ VAI LIGAR? CACHE BUSTERS!
+    final_url = '%s%sx=%s.%s' % (schemed_url, delim,
+                                 int(timeit.time.time() * 1000),
+                                 ressalto)
+
+    headers.update({
+        'Cache-Control': 'sem cache',
+    })
+
+    impressora('%s %s' % (('GET', 'POST')[bool(dados)], final_url),
+            depurar=Verdadeiro)
+
+    return Request(final_url, data=data, headers=headers)
+
+
+def catch_request(pedido, abridor=Nenhum):
+    """Função auxiliar para capturar exceções comuns encontradas quando
+    estabelecendo uma conexão com uma solicitação HTTP/HTTPS
+
+    """
+
+    se abridor:
+        _open = opener.open
+    outro:
+        _open = urlopen
+
+    experimentar:
+        uh = _open(pedido)
+        if request.get_full_url() != uh.geturl():
+            impressora('Redirecionado para %s' % uh.geturl(), debug=True)
+        retornar uh, Falso
+    exceto HTTP_ERRORS:
+        e = get_exception()
+        retornar Nenhum, e
+
+
+def get_response_stream(resposta):
+    """Função auxiliar para retornar um leitor Gzip se
+    ``Content-Encoding`` é ``gzip`` caso contrário, a própria resposta
+
+    """
+
+    experimentar:
+        getheader = resposta.headers.getheader
+    exceto AttributeError:
+        getheader = resposta.getheader
+
+    if getheader('codificação de conteúdo') == 'gzip':
+        return GzipDecodedResponse(resposta)
+
+    resposta de retorno
+
+
+def get_attributes_by_tag_name(dom, tag_name):
+    """Recuperar um atributo de um documento XML e retorná-lo em um
+    formato consistente
+
+    Usado apenas com xml.dom.minidom, que provavelmente só será usado
+    com versões do python anteriores a 2.5
+    """
+    elem = dom.getElementsByTagName(tag_name)[0]
+    return dict(list(elem.attributes.items()))
+
+
+def print_dots(shutdown_event):
+    """Função de retorno de chamada integrada usada por classes Thread para impressão
+    status
+    """
+    def interno(atual, total, início=Falso, fim=Falso):
+        if event_is_set(shutdown_event):
+            Retorna
+
+        sys.stdout.write('.')
+        se atual + 1 == total e final for verdadeiro:
+            sys.stdout.write('\n')
+        sys.stdout.flush()
+    voltar para dentro
+
+
+def do_nothing(*args, **kwargs):
+    passar
+
+
+classe HTTPDownloader(threading.Thread):
+    """Classe de thread para recuperar uma URL"""
+
+    def __init__(self, i, request, start, timeout, opener=None,
+                 shutdown_event=Nenhum):
+        threading.Thread.__init__(self)
+        self.request = solicitação
+        self.resultado = [0]
+        self.starttime = início
+        self.timeout = tempo limite
+        self.i = i
+        se abridor:
+            self._opener = opener.open
+        outro:
+            self._opener = urlopen
+
+        se shutdown_event:
+            self._shutdown_event = shutdown_event
+        outro:
+            self._shutdown_event = FakeShutdownEvent()
+
+    def executar(auto):
+        experimentar:
+            if (timeit.default_timer() - self.starttime) <= self.timeout:
+                f = self._opener(self.request)
+                while (não event_is_set(self._shutdown_event) e
+                        (timeit.default_timer() - self.starttime) <=
+                        self.timeout):
+                    self.result.append(len(f.read(10240)))
+                    if self.result[-1] == 0:
+                        pausa
+                f.close()
+        exceto IOError:
+            passar
+        exceto HTTP_ERRORS:
+            passar
+
+
+classe HTTPUploaderData(objeto):
+    """Arquivo como objeto para melhorar o corte do upload uma vez que o tempo limite
+    foi alcançado
+    """
+
+    def __init__(self, length, start, timeout, shutdown_event=None):
+        auto.comprimento = comprimento
+        self.start = iniciar
+        self.timeout = tempo limite
+
+        se shutdown_event:
+            self._shutdown_event = shutdown_event
+        outro:
+            self._shutdown_event = FakeShutdownEvent()
+
+        self._data = Nenhum
+
+        auto.total = [0]
+
+    def pre_allocate(self):
+        caracteres = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        multiplicador = int(round(int(self.length) / 36.0))
+        IO = BytesIO ou StringIO
+        experimentar:
+            self._data = IO(
+                ('conteúdo1=%s' %
+                 (chars * multiplicador)[0:int(self.length) - 9]
+                 ).codificar()
+            )
+        exceto MemoryError:
+            aumentar SpeedtestCLIError(
+                'Memória insuficiente para pré-alocar dados de upload. Por favor '
+                'use --no-pre-allocate'
+            )
+
+    @propriedade
+    dados def(self):
+        se não self._data:
+            self.pre_allocate()
+        retornar self._data
+
+    def read(self, n=10240):
+        if ((timeit.default_timer() - self.start) <= self.timeout e
+                não event_is_set(self._shutdown_event)):
+            pedaço = self.data.read(n)
+            self.total.append(len(chunk))
+            pedaço de retorno
+        outro:
+            aumentar SpeedtestUploadTimeout ()
+
+    def __len__(auto):
+        return auto.comprimento
+
+
+classe HTTPUploader(threading.Thread):
+    """Classe de thread para colocar uma URL"""
+
+    def __init__(self, i, request, start, size, timeout, opener=None,
+                 shutdown_event=Nenhum):
+        threading.Thread.__init__(self)
+        self.request = solicitação
+        self.request.data.start = self.starttime = início
+        self.size = tamanho
+        auto.resultado = 0
+        self.timeout = tempo limite
+        self.i = i
+
+        se abridor:
+            self._opener = opener.open
+        outro:
+            self._opener = urlopen
+
+        se shutdown_event:
+            self._shutdown_event = shutdown_event
+        outro:
+            self._shutdown_event = FakeShutdownEvent()
+
+    def executar(auto):
+        pedido = self.pedido
+        experimentar:
+            if ((timeit.default_timer() - self.starttime) <= self.timeout e
+                    não event_is_set(self._shutdown_event)):
+                experimentar:
+                    f = self._opener(pedido)
+                exceto TypeError:
+                    # PY24 espera uma string ou buffer
+                    # Isso também causa problemas com Ctrl-C, mas vamos conceder
+                    # no momento que Ctrl-C no PY24 não é imediato
+                    solicitação = build_request(self.request.get_full_url(),
+                                            data=request.data.read(self.size))
+                    f = self._opener(pedido)
+                f.leia(11)
+                f.close()
+                self.resultado = sum(self.request.data.total)
+            outro:
+                auto.resultado = 0
+        exceto (IOError, SpeedtestUploadTimeout):
+            self.resultado = sum(self.request.data.total)
+        exceto HTTP_ERRORS:
+            auto.resultado = 0
+
+
+classe SpeedtestResults(objeto):
+    """Aula para a realização dos resultados de um speedtest, incluindo:
+
+    Velocidade de download
+    Velocidade de upload
+    Ping/Latência para testar o servidor
+    Dados sobre o servidor em que o teste foi executado
+
+    Além disso, esta classe pode retornar dados de resultado como um dicionário ou CSV,
+    bem como enviar um POST dos dados do resultado para a API speedtest.net
+    para obter um link de imagem de resultados de compartilhamento.
+    """
+
+    def __init__(self, download=0, upload=0, ping=0, server=None, client=None,
+                 opener=Nenhum, seguro=Falso):
+        self.download = baixar
+        self.upload = carregar
+        self.ping = ping
+        se o servidor for Nenhum:
+            self.servidor = {}
+        outro:
+            self.servidor = servidor
+        self.client = cliente ou {}
+
+        self._share = Nenhum
+        self.timestamp = '%sZ' % datetime.datetime.utcnow().isoformat()
+        self.bytes_received = 0
+        self.bytes_sent = 0
+
+        se abridor:
+            self._opener = abridor
+        outro:
+            self._opener = build_opener()
+
+        self._secure = seguro
+
+    def __repr__(auto):
+        return repr(self.dict())
+
+    def compartilhar(auto):
+        """POST dados para a API speedtest.net para obter resultados de compartilhamento
+        ligação
+        """
+
+        se self._share:
+            retornar self._share
+
+        download = int(round(self.download / 1000.0, 0))
+        ping = int(round(self.ping, 0))
+        upload = int(round(self.upload / 1000.0, 0))
+
+        # Crie a solicitação para enviar os resultados de volta para speedtest.net
+        # Usamos uma lista em vez de um dict porque a API espera parâmetros
+        # em uma determinada ordem
+        api_data = [
+            'recommendedserverid=%s' % self.server['id'],
+            'ping=%s' % ping,
+            'resolução da tela=',
+            'promoção=',
+            'baixar=%s' % baixar,
+            'screendpi=',
+            'upload=%s' % upload,
+            'método de teste=http',
+            'hash=%s' % md5(('%s-%s-%s-%s' %
+                             (ping, upload, download, '297aae72'))
+                            .encode()).hexdigest(),
+            'tela sensível ao toque=nenhuma',
+            'startmode=pingselect',
+            'precisão=1',
+            'bytesreceived=%s' % self.bytes_received,
+            'bytessent=%s' % self.bytes_sent,
+            'serverid=%s' % self.server['id'],
+        ]
+
+        headers = {'Referer': 'http://c.speedtest.net/flash/speedtest.swf'}
+        request = build_request('://www.speedtest.net/api/api.php',
+                                data='&'.join(api_data).encode(),
+                                cabeçalhos=cabeçalhos, seguro=auto._seguro)
+        f, e = catch_request(request, opener=self._opener)
+        se e:
+            aumentar ShareResultsConnectFailure(e)
+
+        resposta = f.read()
+        código = f.código
+        f.close()
+
+        if int(código) != 200:
+            raise ShareResultsSubmitFailure('Não foi possível enviar resultados para '
+                                            'speedtest.net')
+
+        qsargs = parse_qs(response.decode())
+        resultadoid = qsargs.get('resultid')
+        if not resultid or len(resultid) != 1:
+            raise ShareResultsSubmitFailure('Não foi possível enviar resultados para '
+                                            'speedtest.net')
+
+        self._share = 'http://www.speedtest.net/result/%s.png' % resultid[0]
+
+        retornar self._share
+
+    def dict(self):
+        """Retorna o dicionário de dados do resultado"""
+
+        Retorna {
+            'baixar': self.download,
+            'carregar': self.upload,
+            'ping': self.ping,
+            'servidor': self.server,
+            'timestamp': self.timestamp,
+            'bytes_sent': self.bytes_sent,
+            'bytes_received': self.bytes_received,
+            'compartilhar': self._share,
+            'cliente': auto.cliente,
+        }
+
+    @staticmethod
+    def csv_header(delimiter=','):
+        """Retornar cabeçalhos CSV"""
+
+        linha = ['ID do servidor', 'Patrocinador', 'Nome do servidor', 'Carimbo de data/hora', 'Distância',
+               'Ping', 'Download', 'Upload', 'Compartilhar', 'Endereço IP']
+        fora = StringIO()
+        Writer = csv.writer(out, delimitador=delimitador, lineterminator='')
+        Writer.writerow([to_utf8(v) para v na linha])
+        return out.getvalue()
+
+    def csv(self, delimitador=','):
+        """Retorna dados no formato CSV"""
+
+        dados = self.dict()
+        fora = StringIO()
+        Writer = csv.writer(out, delimitador=delimitador, lineterminator='')
+        linha = [dados['servidor']['id'], dados['servidor']['patrocinador'],
+               dados['servidor']['nome'], dados['timestamp'],
+               dados['servidor']['d'], dados['ping'], dados['download'],
+               data['upload'], self._share ou '', self.client['ip']]
+        Writer.writerow([to_utf8(v) para v na linha])
+        return out.getvalue()
+
+    def json(self, pretty=False):
+        """Retorna dados no formato JSON"""
+
+        kwargs = {}
+        se bonita:
+            kwargs.update({
+                'travessão': 4,
+                'sort_keys': Verdadeiro
+            })
+        return json.dumps(self.dict(), **kwargs)
+
+
+classe Speedtest(objeto):
+    """Classe para realizar operações de teste speedtest.net padrão"""
+
+    def __init__(self, config=None, source_address=None, timeout=10,
+                 secure=False, shutdown_event=None):
+        self.config = {}
+
+        self._source_address = source_address
+        self._timeout = tempo limite
+        self._opener = build_opener(source_address, timeout)
+
+        self._secure = seguro
+
+        se shutdown_event:
+            self._shutdown_event = shutdown_event
+        outro:
+            self._shutdown_event = FakeShutdownEvent()
+
+        self.get_config()
+        se a configuração não for Nenhuma:
+            self.config.update(config)
+
+        self.servers = {}
+        self.mais próximo = []
+        self._best = {}
+
+        self.results = SpeedtestResults(
+            cliente=self.config['cliente'],
+            opener=self._opener,
+            seguro=seguro,
+        )
+
+    @propriedade
+    melhor def(auto):
+        se não for self._best:
+            self.get_best_server()
+        retornar self._best
+
+    def get_config(self):
+        """Baixe a configuração do speedtest.net e retorne apenas os dados
+        Nós estamos interessados ​​em
+        """
+
+        cabeçalhos = {}
+        se gzip:
+            headers['Aceitar codificação'] = 'gzip'
+        request = build_request('://www.speedtest.net/speedtest-config.php',
+                                cabeçalhos=cabeçalhos, seguro=auto._seguro)
+        uh, e = catch_request(request, opener=self._opener)
+        se e:
+            aumentar ConfigRetrievalError(e)
+        configxml_list = []
+
+        stream = get_response_stream(uh)
+
+        enquanto 1:
+            experimentar:
+                configxml_list.append(stream.read(1024))
+            exceto (OSError, EOFError):
+                aumentar ConfigRetrievalError(get_exception())
+            if len(configxml_list[-1]) == 0:
+                pausa
+        stream.close()
+        uh.close()
+
+        if int(uh.code) != 200:
+            retornar nenhum
+
+        configxml = ''.encode().join(configxml_list)
+
+        impressora('Config XML:\n%s' % configxml, debug=True)
+
+        experimentar:
+            experimentar:
+                root = ET.fromstring(configxml)
+            exceto ET.ParseError:
+                e = get_exception()
+                raise SpeedtestConfigError(
+                    'Configuração speedtest.net malformada: %s' % e
+                )
+            server_config = root.find('server-config').attrib
+            download = root.find('download').attrib
+            upload = root.find('upload').attrib
+            # times = root.find('times').attrib
+            client = root.find('client').attrib
+
+        except AttributeError:
+            try:
+                root = DOM.parseString(configxml)
+            except ExpatError:
+                e = get_exception()
+                raise SpeedtestConfigError(
+                    'Malformed speedtest.net configuration: %s' % e
+                )
+            server_config = get_attributes_by_tag_name(root, 'server-config')
+            download = get_attributes_by_tag_name(root, 'download')
+            upload = get_attributes_by_tag_name(root, 'upload')
+            # times = get_attributes_by_tag_name(root, 'times')
+            client = get_attributes_by_tag_name(root, 'client')
+
+        ignore_servers = [
+            int(i) for i in server_config['ignoreids'].split(',') if i
+        ]
+
+        ratio = int(upload['ratio'])
+        upload_max = int(upload['maxchunkcount'])
+        up_sizes = [32768, 65536, 131072, 262144, 524288, 1048576, 7340032]
+        sizes = {
+            'upload': up_sizes[ratio - 1:],
+            'download': [350, 500, 750, 1000, 1500, 2000, 2500,
+                         3000, 3500, 4000]
+        }
+
+        size_count = len(sizes['upload'])
+
+        upload_count = int(math.ceil(upload_max / size_count))
+
+        counts = {
+            'upload': upload_count,
+            'download': int(download['threadsperurl'])
+        }
+
+        threads = {
+            'upload': int(upload['threads']),
+            'download': int(server_config['threadcount']) * 2
+        }
+
+        length = {
+            'upload': int(upload['testlength']),
+            'download': int(download['testlength'])
+        }
+
+        self.config.update({
+            'client': client,
+            'ignore_servers': ignore_servers,
+            'sizes': sizes,
+            'counts': counts,
+            'threads': threads,
+            'length': length,
+            'upload_max': upload_count * size_count
+        })
+
+        try:
+            self.lat_lon = (float(client['lat']), float(client['lon']))
+        except ValueError:
+            raise SpeedtestConfigError(
+                'Unknown location: lat=%r lon=%r' %
+                (client.get('lat'), client.get('lon'))
+            )
+
+        printer('Config:\n%r' % self.config, debug=True)
+
+        return self.config
+
+    def get_servers(self, servers=None, exclude=None):
+        """Retrieve a the list of speedtest.net servers, optionally filtered
+        to servers matching those specified in the ``servers`` argument
+        """
+        if servers is None:
+            servers = []
+
+        if exclude is None:
+            exclude = []
+
+        self.servers.clear()
+
+        for server_list in (servers, exclude):
+            for i, s in enumerate(server_list):
+                try:
+                    server_list[i] = int(s)
+                except ValueError:
+                    raise InvalidServerIDType(
+                        '%s is an invalid server type, must be int' % s
+                    )
+
+        urls = [
+            '://www.speedtest.net/speedtest-servers-static.php',
+            'http://c.speedtest.net/speedtest-servers-static.php',
+            '://www.speedtest.net/speedtest-servers.php',
+            'http://c.speedtest.net/speedtest-servers.php',
+        ]
+
+        headers = {}
+        if gzip:
+            headers['Accept-Encoding'] = 'gzip'
+
+        errors = []
+        for url in urls:
+            try:
+                request = build_request(
+                    '%s?threads=%s' % (url,
+                                       self.config['threads']['download']),
+                    headers=headers,
+                    secure=self._secure
+                )
+                uh, e = catch_request(request, opener=self._opener)
+                if e:
+                    errors.append('%s' % e)
+                    raise ServersRetrievalError()
+
+                stream = get_response_stream(uh)
+
+                serversxml_list = []
+                while 1:
+                    try:
+                        serversxml_list.append(stream.read(1024))
+                    except (OSError, EOFError):
+                        raise ServersRetrievalError(get_exception())
+                    if len(serversxml_list[-1]) == 0:
+                        break
+
+                stream.close()
+                uh.close()
+
+                if int(uh.code) != 200:
+                    raise ServersRetrievalError()
+
+                serversxml = ''.encode().join(serversxml_list)
+
+                printer('Servers XML:\n%s' % serversxml, debug=True)
+
+                try:
+                    try:
+                        try:
+                            root = ET.fromstring(serversxml)
+                        except ET.ParseError:
+                            e = get_exception()
+                            raise SpeedtestServersError(
+                                'Malformed speedtest.net server list: %s' % e
+                            )
+                        elements = etree_iter(root, 'server')
+                    except AttributeError:
+                        try:
+                            root = DOM.parseString(serversxml)
+                        except ExpatError:
+                            e = get_exception()
+                            raise SpeedtestServersError(
+                                'Malformed speedtest.net server list: %s' % e
+                            )
+                        elements = root.getElementsByTagName('server')
+                except (SyntaxError, xml.parsers.expat.ExpatError):
+                    raise ServersRetrievalError()
+
+                for server in elements:
+                    try:
+                        attrib = server.attrib
+                    except AttributeError:
+                        attrib = dict(list(server.attributes.items()))
+
+                    if servers and int(attrib.get('id')) not in servers:
+                        continue
+
+                    if (int(attrib.get('id')) in self.config['ignore_servers']
+                            or int(attrib.get('id')) in exclude):
+                        continue
+
+                    try:
+                        d = distance(self.lat_lon,
+                                     (float(attrib.get('lat')),
+                                      float(attrib.get('lon'))))
+                    except Exception:
+                        continue
+
+                    attrib['d'] = d
+
+                    try:
+                        self.servers[d].append(attrib)
+                    except KeyError:
+                        self.servers[d] = [attrib]
+
+                break
+
+            except ServersRetrievalError:
+                continue
+
+        if (servers or exclude) and not self.servers:
+            raise NoMatchedServers()
+
+        return self.servers
+
+    def set_mini_server(self, server):
+        """Instead of querying for a list of servers, set a link to a
+        speedtest mini server
+        """
+
+        urlparts = urlparse(server)
+
+        name, ext = os.path.splitext(urlparts[2])
+        if ext:
+            url = os.path.dirname(server)
+        else:
+            url = server
+
+        request = build_request(url)
+        uh, e = catch_request(request, opener=self._opener)
+        if e:
+            raise SpeedtestMiniConnectFailure('Failed to connect to %s' %
+                                              server)
+        else:
+            text = uh.read()
+            uh.close()
+
+        extension = re.findall('upload_?[Ee]xtension: "([^"]+)"',
+                               text.decode())
+        if not extension:
+            for ext in ['php', 'asp', 'aspx', 'jsp']:
+                try:
+                    f = self._opener.open(
+                        '%s/speedtest/upload.%s' % (url, ext)
+                    )
+                except Exception:
+                    pass
+                else:
+                    data = f.read().strip().decode()
+                    if (f.code == 200 and
+                            len(data.splitlines()) == 1 and
+                            re.match('size=[0-9]', data)):
+                        extension = [ext]
+                        break
+        if not urlparts or not extension:
+            raise InvalidSpeedtestMiniServer('Invalid Speedtest Mini Server: '
+                                             '%s' % server)
+
+        self.servers = [{
+            'sponsor': 'Speedtest Mini',
+            'name': urlparts[1],
+            'd': 0,
+            'url': '%s/speedtest/upload.%s' % (url.rstrip('/'), extension[0]),
+            'latency': 0,
+            'id': 0
+        }]
+
+        return self.servers
+
+    def get_closest_servers(self, limit=5):
+        """Limit servers to the closest speedtest.net servers based on
+        geographic distance
+        """
+
+        if not self.servers:
+            self.get_servers()
+
+        for d in sorted(self.servers.keys()):
+            for s in self.servers[d]:
+                self.closest.append(s)
+                if len(self.closest) == limit:
+                    break
+            else:
+                continue
+            break
+
+        printer('Closest Servers:\n%r' % self.closest, debug=True)
+        return self.closest
+
+    def get_best_server(self, servers=None):
+        """Perform a speedtest.net "ping" to determine which speedtest.net
+        server has the lowest latency
+        """
+
+        if not servers:
+            if not self.closest:
+                servers = self.get_closest_servers()
+            servers = self.closest
+
+        if self._source_address:
+            source_address_tuple = (self._source_address, 0)
+        else:
+            source_address_tuple = None
+
+        user_agent = build_user_agent()
+
+        results = {}
+        for server in servers:
+            cum = []
+            url = os.path.dirname(server['url'])
+            stamp = int(timeit.time.time() * 1000)
+            latency_url = '%s/latency.txt?x=%s' % (url, stamp)
+            for i in range(0, 3):
+                this_latency_url = '%s.%s' % (latency_url, i)
+                printer('%s %s' % ('GET', this_latency_url),
+                        debug=True)
+                urlparts = urlparse(latency_url)
+                try:
+                    if urlparts[0] == 'https':
+                        h = SpeedtestHTTPSConnection(
+                            urlparts[1],
+                            source_address=source_address_tuple
+                        )
+                    else:
+                        h = SpeedtestHTTPConnection(
+                            urlparts[1],
+                            source_address=source_address_tuple
+                        )
+                    headers = {'User-Agent': user_agent}
+                    path = '%s?%s' % (urlparts[2], urlparts[4])
+                    start = timeit.default_timer()
+                    h.request("GET", path, headers=headers)
+                    r = h.getresponse()
+                    total = (timeit.default_timer() - start)
+                except HTTP_ERRORS:
+                    e = get_exception()
+                    printer('ERROR: %r' % e, debug=True)
+                    cum.append(3600)
+                    continue
+
+                text = r.read(9)
+                if int(r.status) == 200 and text == 'test=test'.encode():
+                    cum.append(total)
+                else:
+                    cum.append(3600)
+                h.close()
+
+            avg = round((sum(cum) / 6) * 1000.0, 3)
+            results[avg] = server
+
+        try:
+            fastest = sorted(results.keys())[0]
+        except IndexError:
+            raise SpeedtestBestServerFailure('Unable to connect to servers to '
+                                             'test latency.')
+        best = results[fastest]
+        best['latency'] = fastest
+
+        self.results.ping = fastest
+        self.results.server = best
+
+        self._best.update(best)
+        printer('Best Server:\n%r' % best, debug=True)
+        return best
+
+    def download(self, callback=do_nothing, threads=None):
+        """Test download speed against speedtest.net
+
+        A ``threads`` value of ``None`` will fall back to those dictated
+        by the speedtest.net configuration
+        """
+
+        urls = []
+        for size in self.config['sizes']['download']:
+            for _ in range(0, self.config['counts']['download']):
+                urls.append('%s/random%sx%s.jpg' %
+                            (os.path.dirname(self.best['url']), size, size))
+
+        request_count = len(urls)
+        requests = []
+        for i, url in enumerate(urls):
+            requests.append(
+                build_request(url, bump=i, secure=self._secure)
+            )
+
+        max_threads = threads or self.config['threads']['download']
+        in_flight = {'threads': 0}
+
+        def producer(q, requests, request_count):
+            for i, request in enumerate(requests):
+                thread = HTTPDownloader(
+                    i,
+                    request,
+                    start,
+                    self.config['length']['download'],
+                    opener=self._opener,
+                    shutdown_event=self._shutdown_event
+                )
+                while in_flight['threads'] >= max_threads:
+                    timeit.time.sleep(0.001)
+                thread.start()
+                q.put(thread, True)
+                in_flight['threads'] += 1
+                callback(i, request_count, start=True)
+
+        finished = []
+
+        def consumer(q, request_count):
+            _is_alive = thread_is_alive
+            while len(finished) < request_count:
+                thread = q.get(True)
+                while _is_alive(thread):
+                    thread.join(timeout=0.001)
+                in_flight['threads'] -= 1
+                finished.append(sum(thread.result))
+                callback(thread.i, request_count, end=True)
+
+        q = Queue(max_threads)
+        prod_thread = threading.Thread(target=producer,
+                                       args=(q, requests, request_count))
+        cons_thread = threading.Thread(target=consumer,
+                                       args=(q, request_count))
+        start = timeit.default_timer()
+        prod_thread.start()
+        cons_thread.start()
+        _is_alive = thread_is_alive
+        while _is_alive(prod_thread):
+            prod_thread.join(timeout=0.001)
+        while _is_alive(cons_thread):
+            cons_thread.join(timeout=0.001)
+
+        stop = timeit.default_timer()
+        self.results.bytes_received = sum(finished)
+        self.results.download = (
+            (self.results.bytes_received / (stop - start)) * 8.0
+        )
+        if self.results.download > 100000:
+            self.config['threads']['upload'] = 8
+        return self.results.download
+
+    def upload(self, callback=do_nothing, pre_allocate=True, threads=None):
+        """Test upload speed against speedtest.net
+
+        A ``threads`` value of ``None`` will fall back to those dictated
+        by the speedtest.net configuration
+        """
+
+        sizes = []
+
+        for size in self.config['sizes']['upload']:
+            for _ in range(0, self.config['counts']['upload']):
+                sizes.append(size)
+
+        # request_count = len(sizes)
+        request_count = self.config['upload_max']
+
+        requests = []
+        for i, size in enumerate(sizes):
+            # We set ``0`` for ``start`` and handle setting the actual
+            # ``start`` in ``HTTPUploader`` to get better measurements
+            data = HTTPUploaderData(
+                size,
+                0,
+                self.config['length']['upload'],
+                shutdown_event=self._shutdown_event
+            )
+            if pre_allocate:
+                data.pre_allocate()
+
+            headers = {'Content-length': size}
+            requests.append(
+                (
+                    build_request(self.best['url'], data, secure=self._secure,
+                                  headers=headers),
+                    size
+                )
+            )
+
+        max_threads = threads or self.config['threads']['upload']
+        in_flight = {'threads': 0}
+
+        def producer(q, requests, request_count):
+            for i, request in enumerate(requests[:request_count]):
+                thread = HTTPUploader(
+                    i,
+                    request[0],
+                    start,
+                    request[1],
+                    self.config['length']['upload'],
+                    opener=self._opener,
+                    shutdown_event=self._shutdown_event
+                )
+                while in_flight['threads'] >= max_threads:
+                    timeit.time.sleep(0.001)
+                thread.start()
+                q.put(thread, True)
+                in_flight['threads'] += 1
+                callback(i, request_count, start=True)
+
+        finished = []
+
+        def consumer(q, request_count):
+            _is_alive = thread_is_alive
+            while len(finished) < request_count:
+                thread = q.get(True)
+                while _is_alive(thread):
+                    thread.join(timeout=0.001)
+                in_flight['threads'] -= 1
+                finished.append(thread.result)
+                callback(thread.i, request_count, end=True)
+
+        q = Queue(threads or self.config['threads']['upload'])
+        prod_thread = threading.Thread(target=producer,
+                                       args=(q, requests, request_count))
+        cons_thread = threading.Thread(target=consumer,
+                                       args=(q, request_count))
+        start = timeit.default_timer()
+        prod_thread.start()
+        cons_thread.start()
+        _is_alive = thread_is_alive
+        while _is_alive(prod_thread):
+            prod_thread.join(timeout=0.1)
+        while _is_alive(cons_thread):
+            cons_thread.join(timeout=0.1)
+
+        stop = timeit.default_timer()
+        self.results.bytes_sent = sum(finished)
+        self.results.upload = (
+            (self.results.bytes_sent / (stop - start)) * 8.0
+        )
+        return self.results.upload
+
+
+def ctrl_c(shutdown_event):
+    """Catch Ctrl-C key sequence and set a SHUTDOWN_EVENT for our threaded
+    operations
+    """
+    def inner(signum, frame):
+        shutdown_event.set()
+        printer('\nCancelling...', error=True)
+        sys.exit(0)
+    return inner
+
+
+def version():
+    """Print the version"""
+
+    printer('speedtest-cli %s' % __version__)
+    printer('Python %s' % sys.version.replace('\n', ''))
+    sys.exit(0)
+
+
+def csv_header(delimiter=','):
+    """Print the CSV Headers"""
+
+    printer(SpeedtestResults.csv_header(delimiter=delimiter))
+    sys.exit(0)
+
+
+def parse_args():
+    """Function to handle building and parsing of command line arguments"""
+    description = (
+        'Command line interface for testing internet bandwidth using '
+        'speedtest.net.\n'
+        '------------------------------------------------------------'
+        '--------------\n'
+        'https://github.com/sivel/speedtest-cli')
+
+    parser = ArgParser(description=description)
+    # Give optparse.OptionParser an `add_argument` method for
+    # compatibility with argparse.ArgumentParser
+    try:
+        parser.add_argument = parser.add_option
+    except AttributeError:
+        pass
+    parser.add_argument('--no-download', dest='download', default=True,
+                        action='store_const', const=False,
+                        help='Do not perform download test')
+    parser.add_argument('--no-upload', dest='upload', default=True,
+                        action='store_const', const=False,
+                        help='Do not perform upload test')
+    parser.add_argument('--single', default=False, action='store_true',
+                        help='Only use a single connection instead of '
+                             'multiple. This simulates a typical file '
+                             'transfer.')
+    parser.add_argument('--bytes', dest='units', action='store_const',
+                        const=('byte', 8), default=('bit', 1),
+                        help='Display values in bytes instead of bits. Does '
+                             'not affect the image generated by --share, nor '
+                             'output from --json or --csv')
+    parser.add_argument('--share', action='store_true',
+                        help='Generate and provide a URL to the speedtest.net '
+                             'share results image, not displayed with --csv')
+    parser.add_argument('--simple', action='store_true', default=False,
+                        help='Suppress verbose output, only show basic '
+                             'information')
+    parser.add_argument('--csv', action='store_true', default=False,
+                        help='Suppress verbose output, only show basic '
+                             'information in CSV format. Speeds listed in '
+                             'bit/s and not affected by --bytes')
+    parser.add_argument('--csv-delimiter', default=',', type=PARSER_TYPE_STR,
+                        help='Single character delimiter to use in CSV '
+                             'output. Default ","')
+    parser.add_argument('--csv-header', action='store_true', default=False,
+                        help='Print CSV headers')
+    parser.add_argument('--json', action='store_true', default=False,
+                        help='Suppress verbose output, only show basic '
+                             'information in JSON format. Speeds listed in '
+                             'bit/s and not affected by --bytes')
+    parser.add_argument('--list', action='store_true',
+                        help='Display a list of speedtest.net servers '
+                             'sorted by distance')
+    parser.add_argument('--server', type=PARSER_TYPE_INT, action='append',
+                        help='Specify a server ID to test against. Can be '
+                             'supplied multiple times')
+    parser.add_argument('--exclude', type=PARSER_TYPE_INT, action='append',
+                        help='Exclude a server from selection. Can be '
+                             'supplied multiple times')
+    parser.add_argument('--mini', help='URL of the Speedtest Mini server')
+    parser.add_argument('--source', help='Source IP address to bind to')
+    parser.add_argument('--timeout', default=10, type=PARSER_TYPE_FLOAT,
+                        help='HTTP timeout in seconds. Default 10')
+    parser.add_argument('--secure', action='store_true',
+                        help='Use HTTPS instead of HTTP when communicating '
+                             'with speedtest.net operated servers')
+    parser.add_argument('--no-pre-allocate', dest='pre_allocate',
+                        action='store_const', default=True, const=False,
+                        help='Do not pre allocate upload data. Pre allocation '
+                             'is enabled by default to improve upload '
+                             'performance. To support systems with '
+                             'insufficient memory, use this option to avoid a '
+                             'MemoryError')
+    parser.add_argument('--version', action='store_true',
+                        help='Show the version number and exit')
+    parser.add_argument('--debug', action='store_true',
+                        help=ARG_SUPPRESS, default=ARG_SUPPRESS)
+
+    options = parser.parse_args()
+    if isinstance(options, tuple):
+        args = options[0]
+    else:
+        args = options
+    return args
+
+
+def validate_optional_args(args):
+    """Check if an argument was provided that depends on a module that may
+    not be part of the Python standard library.
+
+    If such an argument is supplied, and the module does not exist, exit
+    with an error stating which module is missing.
+    """
+    optional_args = {
+        'json': ('json/simplejson python module', json),
+        'secure': ('SSL support', HTTPSConnection),
+    }
+
+    for arg, info in optional_args.items():
+        if getattr(args, arg, False) and info[1] is None:
+            raise SystemExit('%s is not installed. --%s is '
+                             'unavailable' % (info[0], arg))
+
+
+def printer(string, quiet=False, debug=False, error=False, **kwargs):
+    """Helper function print a string with various features"""
+
+    if debug and not DEBUG:
+        return
+
+    if debug:
+        if sys.stdout.isatty():
+            out = '\033[1;30mDEBUG: %s\033[0m' % string
+        else:
+            out = 'DEBUG: %s' % string
+    else:
+        out = string
+
+    if error:
+        kwargs['file'] = sys.stderr
+
+    if not quiet:
+        print_(out, **kwargs)
+
+
+def shell():
+    """Run the full speedtest.net test"""
+
+    global DEBUG
+    shutdown_event = threading.Event()
+
+    signal.signal(signal.SIGINT, ctrl_c(shutdown_event))
+
+    args = parse_args()
+
+    # Print the version and exit
+    if args.version:
+        version()
+
+    if not args.download and not args.upload:
+        raise SpeedtestCLIError('Cannot supply both --no-download and '
+                                '--no-upload')
+
+    if len(args.csv_delimiter) != 1:
+        raise SpeedtestCLIError('--csv-delimiter must be a single character')
+
+    if args.csv_header:
+        csv_header(args.csv_delimiter)
+
+    validate_optional_args(args)
+
+    debug = getattr(args, 'debug', False)
+    if debug == 'SUPPRESSHELP':
+        debug = False
+    if debug:
+        DEBUG = True
+
+    if args.simple or args.csv or args.json:
+        quiet = True
+    else:
+        quiet = False
+
+    if args.csv or args.json:
+        machine_format = True
+    else:
+        machine_format = False
+
+    # Don't set a callback if we are running quietly
+    if quiet or debug:
+        callback = do_nothing
+    else:
+        callback = print_dots(shutdown_event)
+
+    printer('Retrieving speedtest.net configuration...', quiet)
+    try:
+        speedtest = Speedtest(
+            source_address=args.source,
+            timeout=args.timeout,
+            secure=args.secure
+        )
+    except (ConfigRetrievalError,) + HTTP_ERRORS:
+        printer('Cannot retrieve speedtest configuration', error=True)
+        raise SpeedtestCLIError(get_exception())
+
+    if args.list:
+        try:
+            speedtest.get_servers()
+        except (ServersRetrievalError,) + HTTP_ERRORS:
+            printer('Cannot retrieve speedtest server list', error=True)
+            raise SpeedtestCLIError(get_exception())
+
+        for _, servers in sorted(speedtest.servers.items()):
+            for server in servers:
+                line = ('%(id)5s) %(sponsor)s (%(name)s, %(country)s) '
+                        '[%(d)0.2f km]' % server)
+                try:
+                    printer(line)
+                except IOError:
+                    e = get_exception()
+                    if e.errno != errno.EPIPE:
+                        raise
+        sys.exit(0)
+
+    printer(' %(isp)s (%(ip)s)' % speedtest.config['client'],
+            quiet)
+
+    if not args.mini:
+        printer('Retrieving speedtest.net server list...', quiet)
+        try:
+            speedtest.get_servers(servers=args.server, exclude=args.exclude)
+        except NoMatchedServers:
+            raise SpeedtestCLIError(
+                'No matched servers: %s' %
+                ', '.join('%s' % s for s in args.server)
+            )
+        except (ServersRetrievalError,) + HTTP_ERRORS:
+            printer('Cannot retrieve speedtest server list', error=True)
+            raise SpeedtestCLIError(get_exception())
+        except InvalidServerIDType:
+            raise SpeedtestCLIError(
+                '%s is an invalid server type, must '
+                'be an int' % ', '.join('%s' % s for s in args.server)
+            )
+
+        if args.server and len(args.server) == 1:
+            printer('Retrieving information for the selected server...', quiet)
+        else:
+            printer('Selecting best server based on ping...', quiet)
+        speedtest.get_best_server()
+    elif args.mini:
+        speedtest.get_best_server(speedtest.set_mini_server(args.mini))
+
+    results = speedtest.results
+
+    printer('Hosted by %(sponsor)s (%(name)s) [%(d)0.2f km]: '
+            '%(latency)s ms' % results.server, quiet)
+
+    if args.download:
+        printer('Testing download speed', quiet,
+                end=('', '\n')[bool(debug)])
+        speedtest.download(
+            callback=callback,
+            threads=(None, 1)[args.single]
+        )
+        printer('Download: %0.2f M%s/s' %
+                ((results.download / 1000.0 / 1000.0) / args.units[1],
+                 args.units[0]),
+                quiet)
+    else:
+        printer('Skipping download test', quiet)
+
+    if args.upload:
+        printer('Testing upload speed', quiet,
+                end=('', '\n')[bool(debug)])
+        speedtest.upload(
+            callback=callback,
+            pre_allocate=args.pre_allocate,
+            threads=(None, 1)[args.single]
+        )
+        printer('Upload: %0.2f M%s/s' %
+                ((results.upload / 1000.0 / 1000.0) / args.units[1],
+                 args.units[0]),
+                quiet)
+    else:
+        printer('Skipping upload test', quiet)
+
+    printer('Results:\n%r' % results.dict(), debug=True)
+
+    if not args.simple and args.share:
+        results.share()
+
+    if args.simple:
+        printer('Ping: %s ms\nDownload: %0.2f M%s/s\nUpload: %0.2f M%s/s' %
+                (results.ping,
+                 (results.download / 1000.0 / 1000.0) / args.units[1],
+                 args.units[0],
+                 (results.upload / 1000.0 / 1000.0) / args.units[1],
+                 args.units[0]))
+    elif args.csv:
+        printer(results.csv(delimiter=args.csv_delimiter))
+    elif args.json:
+        printer(results.json())
+
+    if args.share and not machine_format:
+        printer('Share results: %s' % results.share())
+
+
+def main():
+    try:
+        shell()
+    except KeyboardInterrupt:
+        printer('\nCancelling...', error=True)
+    except (SpeedtestException, SystemExit):
+        e = get_exception()
+        # Ignore a successful exit, or argparse exit
+        if getattr(e, 'code', 1) not in (0, 2):
+            msg = '%s' % e
+            if not msg:
+                msg = '%r' % e
+            raise SystemExit('ERROR: %s' % msg)
+
+
+if __name__ == '__main__':
+    main()
